@@ -327,7 +327,7 @@ class Utils {
                   builder: (context) => Column(
                     children: List.generate(list.length, (index) {
                       return radioWidget(
-                        paddingStart: 14,
+                        padding: const EdgeInsets.only(left: 14),
                         title: list[index].title ?? '',
                         groupValue: checkedId,
                         value: list[index].id,
@@ -1060,12 +1060,12 @@ class Utils {
     }
 
     String format(first, second) {
-      double result = number / first;
-      String format = result.toStringAsFixed(1);
-      if (format.endsWith('.0')) {
-        return '${result.toInt()}$second';
+      double result = ((number / first) as double).toPrecision(1);
+      int intRes = result.toInt();
+      if (result == intRes) {
+        return '$intRes$second';
       } else {
-        return '$format$second';
+        return '$result$second';
       }
     }
 
@@ -1207,7 +1207,7 @@ class Utils {
 
   // 时间显示，刚刚，x分钟前
   static String dateFormat(timeStamp, {formatType = 'list'}) {
-    if (timeStamp == 0 || timeStamp == null || timeStamp == '') {
+    if (timeStamp == null || timeStamp == 0 || timeStamp == '') {
       return '';
     }
     // 当前时间

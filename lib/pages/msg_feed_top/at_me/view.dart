@@ -3,6 +3,7 @@ import 'package:PiliPlus/common/widgets/network_img_layer.dart';
 import 'package:PiliPlus/common/widgets/refresh_indicator.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/utils/app_scheme.dart';
+import 'package:PiliPlus/utils/utils.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -54,33 +55,50 @@ class _AtMePageState extends State<AtMePage> {
                       PiliScheme.routePushFromUrl(nativeUri);
                     }
                   },
-                  leading: NetworkImgLayer(
-                    width: 45,
-                    height: 45,
-                    type: 'avatar',
-                    src: loadingState.response[index].user?.avatar,
+                  leading: GestureDetector(
+                    onTap: () {
+                      Get.toNamed(
+                          '/member?mid=${loadingState.response[index].user?.mid}');
+                    },
+                    child: NetworkImgLayer(
+                      width: 45,
+                      height: 45,
+                      type: 'avatar',
+                      src: loadingState.response[index].user?.avatar,
+                    ),
                   ),
                   title: Text(
                     "${loadingState.response[index].user?.nickname}  "
                     "在${loadingState.response[index].item?.business}中@了我",
-                    style: Theme.of(context).textTheme.titleMedium!.copyWith(
+                    style: Theme.of(context).textTheme.bodyMedium!.copyWith(
                           color: Theme.of(context).colorScheme.primary,
                         ),
                   ),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      if ((loadingState.response[index].item?.sourceContent
+                                  as String?)
+                              ?.isNotEmpty ==
+                          true) ...[
+                        const SizedBox(height: 4),
+                        Text(loadingState.response[index].item?.sourceContent,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium!
+                                .copyWith(
+                                    color:
+                                        Theme.of(context).colorScheme.outline)),
+                      ],
                       const SizedBox(height: 4),
                       Text(
-                          loadingState.response[index].item?.sourceContent ??
-                              "",
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodyMedium!
-                              .copyWith(
-                                  color: Theme.of(context).colorScheme.outline))
+                        Utils.dateFormat(loadingState.response[index].atTime),
+                        style: Theme.of(context).textTheme.bodyMedium!.copyWith(
+                              color: Theme.of(context).colorScheme.outline,
+                            ),
+                      ),
                     ],
                   ),
                   trailing: loadingState.response[index].item?.image != null &&

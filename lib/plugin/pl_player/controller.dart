@@ -254,6 +254,8 @@ class PlPlayerController {
   /// 弹幕开关
   Rx<bool> isOpenDanmu = false.obs;
 
+  late final showFSActionItem = GStorage.showFSActionItem;
+
   /// 弹幕权重
   int danmakuWeight = 0;
   int filterCount = 0;
@@ -353,6 +355,8 @@ class PlPlayerController {
   static void setPlayCallBack(Function? playCallBack) {
     _playCallBack = playCallBack;
   }
+
+  bool? backToHome;
 
   static Function? _playCallBack;
 
@@ -1127,14 +1131,16 @@ class PlPlayerController {
     }
   }
 
+  bool? isTriple;
+
   /// 隐藏控制条
-  void _hideTaskControls() {
+  void hideTaskControls() {
     if (_timer != null) {
       _timer!.cancel();
     }
     Duration waitingTime = Duration(seconds: enableLongShowControl ? 30 : 3);
     _timer = Timer(waitingTime, () {
-      if (!isSliderMoving.value) {
+      if (!isSliderMoving.value && isTriple != true) {
         controls = false;
       }
       _timer = null;
@@ -1167,7 +1173,7 @@ class PlPlayerController {
     cancelSeek = null;
     hasToast = null;
     _isSliderMoving.value = false;
-    _hideTaskControls();
+    hideTaskControls();
   }
 
   /// 音量
@@ -1332,7 +1338,7 @@ class PlPlayerController {
     _showControls.value = visible;
     _timer?.cancel();
     if (visible) {
-      _hideTaskControls();
+      hideTaskControls();
     }
   }
 

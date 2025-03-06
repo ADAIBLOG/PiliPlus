@@ -49,6 +49,7 @@ class _DynamicDetailPageState extends State<DynamicDetailPage>
   // 回复类型
   late int replyType;
   bool _isFabVisible = true;
+  bool? _imageStatus;
   int oid = 0;
   int? opusId;
   bool isOpusId = false;
@@ -63,10 +64,10 @@ class _DynamicDetailPageState extends State<DynamicDetailPage>
 
   get _getImageCallback => _horizontalPreview
       ? (imgList, index) {
-          bool needReverse =
-              _fabAnimationCtr?.status.isForwardOrCompleted == true;
-          if (needReverse) {
-            _fabAnimationCtr?.reverse();
+          _imageStatus = true;
+          bool isFabVisible = _isFabVisible;
+          if (isFabVisible) {
+            _hideFab();
           }
           final ctr = AnimationController(
             vsync: this,
@@ -82,9 +83,10 @@ class _DynamicDetailPageState extends State<DynamicDetailPage>
             imgList,
             index,
             (value) async {
-              if (needReverse) {
-                needReverse = false;
-                _fabAnimationCtr?.forward();
+              _imageStatus = null;
+              if (isFabVisible) {
+                isFabVisible = false;
+                _showFab();
               }
               if (value == false) {
                 await ctr.reverse();
@@ -195,10 +197,9 @@ class _DynamicDetailPageState extends State<DynamicDetailPage>
       } else {
         ScaffoldState? scaffoldState = Scaffold.maybeOf(context);
         if (scaffoldState != null) {
-          bool needReverse =
-              _fabAnimationCtr?.status.isForwardOrCompleted == true;
-          if (needReverse) {
-            _fabAnimationCtr?.reverse();
+          bool isFabVisible = _isFabVisible;
+          if (isFabVisible) {
+            _hideFab();
           }
           scaffoldState.showBottomSheet(
             backgroundColor: Colors.transparent,
@@ -208,8 +209,8 @@ class _DynamicDetailPageState extends State<DynamicDetailPage>
               child: replyReplyPage(
                 false,
                 () {
-                  if (needReverse) {
-                    _fabAnimationCtr?.forward();
+                  if (isFabVisible && _imageStatus != true) {
+                    _showFab();
                   }
                 },
               ),
@@ -229,22 +230,28 @@ class _DynamicDetailPageState extends State<DynamicDetailPage>
 
   void listener() {
     // 标题
-    if (_dynamicDetailController.scrollController.offset > 55 &&
-        !_visibleTitle) {
-      _visibleTitle = true;
-      _titleStreamC.add(true);
-    } else if (_dynamicDetailController.scrollController.offset <= 55 &&
-        _visibleTitle) {
-      _visibleTitle = false;
-      _titleStreamC.add(false);
+    if (_dynamicDetailController.scrollController.positions.length == 1) {
+      if (_dynamicDetailController.scrollController.offset > 55 &&
+          !_visibleTitle) {
+        _visibleTitle = true;
+        _titleStreamC.add(true);
+      } else if (_dynamicDetailController.scrollController.offset <= 55 &&
+          _visibleTitle) {
+        _visibleTitle = false;
+        _titleStreamC.add(false);
+      }
     }
 
     // fab按钮
-    final ScrollDirection direction =
-        _dynamicDetailController.scrollController.position.userScrollDirection;
-    if (direction == ScrollDirection.forward) {
+    final ScrollDirection direction1 = _dynamicDetailController
+        .scrollController.positions.first.userScrollDirection;
+    late final ScrollDirection direction2 = _dynamicDetailController
+        .scrollController.positions.last.userScrollDirection;
+    if (direction1 == ScrollDirection.forward ||
+        direction2 == ScrollDirection.forward) {
       _showFab();
-    } else if (direction == ScrollDirection.reverse) {
+    } else if (direction1 == ScrollDirection.reverse ||
+        direction2 == ScrollDirection.reverse) {
       _hideFab();
     }
   }
@@ -384,6 +391,7 @@ class _DynamicDetailPageState extends State<DynamicDetailPage>
                     Expanded(
                       flex: _ratio[0].toInt(),
                       child: CustomScrollView(
+                        controller: _dynamicDetailController.scrollController,
                         physics: const AlwaysScrollableScrollPhysics(),
                         slivers: [
                           SliverPadding(

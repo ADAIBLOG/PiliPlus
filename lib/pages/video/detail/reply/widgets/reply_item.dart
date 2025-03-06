@@ -2,11 +2,14 @@ import 'dart:math';
 
 import 'package:PiliPlus/common/constants.dart';
 import 'package:PiliPlus/common/widgets/imageview.dart';
+import 'package:PiliPlus/common/widgets/report.dart';
+import 'package:PiliPlus/http/init.dart';
 import 'package:PiliPlus/http/video.dart';
 import 'package:PiliPlus/models/dynamics/result.dart';
 import 'package:PiliPlus/utils/extension.dart';
 import 'package:PiliPlus/utils/global_data.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
@@ -1034,16 +1037,32 @@ class MorePanel extends StatelessWidget {
     switch (type) {
       case 'report':
         Get.back();
-        dynamic result = await Get.toNamed(
-          '/webview',
-          parameters: {
-            'url':
-                'https://www.bilibili.com/h5/comment/report?mid=${item.mid}&oid=${item.oid}&pageType=1&rpid=${item.rpid}&platform=android',
+        autoWrapReportDialog(
+          Get.context!,
+          ReportOptions.commentReport,
+          (reasonType, reasonDesc, banUid) async {
+            final res = await Request().post(
+              '/x/v2/reply/report',
+              data: {
+                'add_blacklist': banUid,
+                'csrf': await Request.getCsrf(),
+                'gaia_source': 'main_h5',
+                'oid': item.oid,
+                'platform': 'android',
+                'reason': reasonType,
+                'rpid': item.rpid,
+                'scene': 'main',
+                'type': 1,
+                if (reasonType == 0) 'content': reasonDesc!
+              },
+              options: Options(contentType: Headers.formUrlEncodedContentType),
+            );
+            if (res.data['code'] == 0) {
+              onDelete?.call(item.rpid);
+            }
+            return res.data as Map;
           },
         );
-        if (result == true) {
-          onDelete?.call(item.rpid!);
-        }
         break;
       case 'copyAll':
         Get.back();

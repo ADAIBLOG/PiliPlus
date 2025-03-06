@@ -28,6 +28,7 @@ import 'package:easy_debounce/easy_throttle.dart';
 import 'package:extended_nested_scroll_view/extended_nested_scroll_view.dart';
 import 'package:floating/floating.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -406,7 +407,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
     }
     shutdownTimerService.handleWaitingFinished();
     // _bufferedListener?.cancel();
-    if (videoDetailController.backToHome != true) {
+    if (videoDetailController.plPlayerController.backToHome != true) {
       videoPlayerServiceHandler.onVideoDetailDispose(heroTag);
     }
     if (plPlayerController != null) {
@@ -636,25 +637,49 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
               : PreferredSize(
                   preferredSize: Size.fromHeight(0),
                   child: Obx(
-                    () => Stack(
-                      children: [
-                        AppBar(
-                          backgroundColor: Colors.black,
-                          toolbarHeight: 0,
-                        ),
-                        if (videoDetailController.scrollRatio.value != 0 &&
-                            videoDetailController.scrollCtr.offset != 0 &&
-                            context.orientation == Orientation.portrait)
+                    () {
+                      bool shouldShow =
+                          videoDetailController.scrollRatio.value != 0 &&
+                              videoDetailController.scrollCtr.offset != 0 &&
+                              context.orientation == Orientation.portrait;
+                      return Stack(
+                        children: [
                           AppBar(
-                            backgroundColor: Theme.of(context)
-                                .colorScheme
-                                .surface
-                                .withOpacity(
-                                    videoDetailController.scrollRatio.value),
+                            backgroundColor: Colors.black,
                             toolbarHeight: 0,
+                            systemOverlayStyle: Platform.isAndroid
+                                ? shouldShow
+                                    ? null
+                                    : SystemUiOverlayStyle(
+                                        statusBarIconBrightness:
+                                            Brightness.light,
+                                        systemNavigationBarIconBrightness:
+                                            Theme.of(context)
+                                                .brightness
+                                                .reverse,
+                                      )
+                                : null,
                           ),
-                      ],
-                    ),
+                          if (shouldShow)
+                            AppBar(
+                              backgroundColor: Theme.of(context)
+                                  .colorScheme
+                                  .surface
+                                  .withOpacity(
+                                      videoDetailController.scrollRatio.value),
+                              toolbarHeight: 0,
+                              systemOverlayStyle: Platform.isAndroid
+                                  ? SystemUiOverlayStyle(
+                                      statusBarIconBrightness:
+                                          Theme.of(context).brightness.reverse,
+                                      systemNavigationBarIconBrightness:
+                                          Theme.of(context).brightness.reverse,
+                                    )
+                                  : null,
+                            ),
+                        ],
+                      );
+                    },
                   ),
                 ),
           body: ExtendedNestedScrollView(
@@ -814,6 +839,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
                                                   ),
                                                   onPressed: () {
                                                     videoDetailController
+                                                        .plPlayerController
                                                         .backToHome = true;
                                                     Get.until((route) =>
                                                         route.isFirst);
@@ -844,6 +870,69 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
                                             ],
                                           ),
                                         ),
+                                        if (videoDetailController.playedTime ==
+                                            null)
+                                          Align(
+                                            alignment: Alignment.centerRight,
+                                            child: PopupMenuButton<String>(
+                                              icon: Icon(
+                                                Icons.more_vert,
+                                                color: Theme.of(context)
+                                                    .colorScheme
+                                                    .onSurface,
+                                              ),
+                                              onSelected: (String type) async {
+                                                switch (type) {
+                                                  case 'later':
+                                                    var res = await UserHttp
+                                                        .toViewLater(
+                                                            bvid:
+                                                                videoDetailController
+                                                                    .bvid);
+                                                    SmartDialog.showToast(
+                                                        res['msg']);
+                                                    break;
+                                                  case 'report':
+                                                    if (videoDetailController
+                                                            .userInfo ==
+                                                        null) {
+                                                      SmartDialog.showToast(
+                                                          '账号未登录');
+                                                    } else {
+                                                      Get.toNamed('/webview',
+                                                          parameters: {
+                                                            'url':
+                                                                'https://www.bilibili.com/appeal/?avid=${IdUtils.bv2av(videoDetailController.bvid)}&bvid=${videoDetailController.bvid}'
+                                                          });
+                                                    }
+                                                    break;
+                                                  case 'note':
+                                                    videoDetailController
+                                                        .showNoteList(context);
+                                                    break;
+                                                }
+                                              },
+                                              itemBuilder:
+                                                  (BuildContext context) =>
+                                                      <PopupMenuEntry<String>>[
+                                                const PopupMenuItem<String>(
+                                                  value: 'later',
+                                                  child: Text('稍后再看'),
+                                                ),
+                                                if (videoDetailController
+                                                        .epId ==
+                                                    null)
+                                                  const PopupMenuItem<String>(
+                                                    value: 'note',
+                                                    child: Text('查看笔记'),
+                                                  ),
+                                                const PopupMenuItem<String>(
+                                                  value: 'report',
+                                                  child: Text('举报'),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
                                       ],
                                     ),
                                   ),
@@ -1359,7 +1448,8 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
                             ],
                           ),
                           onPressed: () {
-                            videoDetailController.backToHome = true;
+                            videoDetailController
+                                .plPlayerController.backToHome = true;
                             Get.until((route) => route.isFirst);
                           },
                         ),
@@ -1565,14 +1655,16 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
           labelColor: needIndicator.not || tabs.length == 1
               ? Theme.of(context).colorScheme.onSurface
               : null,
-          indicatorColor:
-              needIndicator.not || tabs.length == 1 ? Colors.transparent : null,
+          indicator: needIndicator.not || tabs.length == 1
+              ? const BoxDecoration()
+              : null,
           padding: EdgeInsets.zero,
           controller: videoDetailController.tabCtr,
           labelStyle: const TextStyle(fontSize: 13),
           labelPadding:
               const EdgeInsets.symmetric(horizontal: 10.0), // 设置每个标签的宽度
           dividerColor: Colors.transparent,
+          dividerHeight: 0,
           onTap: (value) {
             void animToTop() {
               if (onTap != null) {

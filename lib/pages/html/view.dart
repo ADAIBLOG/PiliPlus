@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:PiliPlus/common/widgets/article_content.dart';
 import 'package:PiliPlus/common/widgets/http_error.dart';
 import 'package:PiliPlus/common/widgets/loading_widget.dart';
+import 'package:PiliPlus/common/widgets/refresh_indicator.dart';
 import 'package:PiliPlus/http/constants.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/models/common/reply_sort_type.dart';
@@ -44,6 +45,7 @@ class _HtmlRenderPageState extends State<HtmlRenderPage>
   late String dynamicType;
   late int type;
   bool _isFabVisible = true;
+  bool? _imageStatus;
   late AnimationController fabAnimationCtr;
 
   late final List<double> _ratio = GStorage.dynamicDetailRatio;
@@ -56,10 +58,10 @@ class _HtmlRenderPageState extends State<HtmlRenderPage>
 
   get _getImageCallback => _horizontalPreview
       ? (imgList, index) {
-          bool needReverse =
-              fabAnimationCtr.status.isForwardOrCompleted == true;
-          if (needReverse) {
-            fabAnimationCtr.reverse();
+          _imageStatus = true;
+          bool isFabVisible = _isFabVisible;
+          if (isFabVisible) {
+            _hideFab();
           }
           final ctr = AnimationController(
             vsync: this,
@@ -75,9 +77,10 @@ class _HtmlRenderPageState extends State<HtmlRenderPage>
             imgList,
             index,
             (value) async {
-              if (needReverse) {
-                needReverse = false;
-                fabAnimationCtr.forward();
+              _imageStatus = null;
+              if (isFabVisible) {
+                isFabVisible = false;
+                _showFab();
               }
               if (value == false) {
                 await ctr.reverse();
@@ -131,11 +134,15 @@ class _HtmlRenderPageState extends State<HtmlRenderPage>
     // }
 
     // fab按钮
-    final ScrollDirection direction =
-        _htmlRenderCtr.scrollController.position.userScrollDirection;
-    if (direction == ScrollDirection.forward) {
+    final ScrollDirection direction1 =
+        _htmlRenderCtr.scrollController.positions.first.userScrollDirection;
+    late final ScrollDirection direction2 =
+        _htmlRenderCtr.scrollController.positions.last.userScrollDirection;
+    if (direction1 == ScrollDirection.forward ||
+        direction2 == ScrollDirection.forward) {
       _showFab();
-    } else if (direction == ScrollDirection.reverse) {
+    } else if (direction1 == ScrollDirection.reverse ||
+        direction2 == ScrollDirection.reverse) {
       _hideFab();
     }
   }
@@ -184,10 +191,9 @@ class _HtmlRenderPageState extends State<HtmlRenderPage>
       } else {
         ScaffoldState? scaffoldState = Scaffold.maybeOf(context);
         if (scaffoldState != null) {
-          bool needReverse =
-              fabAnimationCtr.status.isForwardOrCompleted == true;
-          if (needReverse) {
-            fabAnimationCtr.reverse();
+          bool isFabVisible = _isFabVisible;
+          if (isFabVisible) {
+            _hideFab();
           }
           scaffoldState.showBottomSheet(
             backgroundColor: Colors.transparent,
@@ -197,8 +203,8 @@ class _HtmlRenderPageState extends State<HtmlRenderPage>
               child: replyReplyPage(
                 false,
                 () {
-                  if (needReverse) {
-                    fabAnimationCtr.forward();
+                  if (isFabVisible && _imageStatus != true) {
+                    _showFab();
                   }
                 },
               ),
@@ -337,9 +343,8 @@ class _HtmlRenderPageState extends State<HtmlRenderPage>
                   Expanded(
                     flex: _ratio[0].toInt(),
                     child: CustomScrollView(
-                      controller: orientation == Orientation.portrait
-                          ? _htmlRenderCtr.scrollController
-                          : null,
+                      controller: _htmlRenderCtr.scrollController,
+                      physics: const AlwaysScrollableScrollPhysics(),
                       slivers: [
                         SliverPadding(
                           padding: orientation == Orientation.portrait
@@ -400,23 +405,29 @@ class _HtmlRenderPageState extends State<HtmlRenderPage>
                       child: Scaffold(
                         key: _key,
                         backgroundColor: Colors.transparent,
-                        body: CustomScrollView(
-                          controller: _htmlRenderCtr.scrollController,
-                          slivers: [
-                            SliverPadding(
-                              padding: EdgeInsets.only(right: padding / 4),
-                              sliver: SliverToBoxAdapter(
-                                child: replyHeader(),
+                        body: refreshIndicator(
+                          onRefresh: () async {
+                            await _htmlRenderCtr.onRefresh();
+                          },
+                          child: CustomScrollView(
+                            controller: _htmlRenderCtr.scrollController,
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            slivers: [
+                              SliverPadding(
+                                padding: EdgeInsets.only(right: padding / 4),
+                                sliver: SliverToBoxAdapter(
+                                  child: replyHeader(),
+                                ),
                               ),
-                            ),
-                            SliverPadding(
-                              padding: EdgeInsets.only(right: padding / 4),
-                              sliver: Obx(
-                                () => replyList(
-                                    _htmlRenderCtr.loadingState.value),
+                              SliverPadding(
+                                padding: EdgeInsets.only(right: padding / 4),
+                                sliver: Obx(
+                                  () => replyList(
+                                      _htmlRenderCtr.loadingState.value),
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ),

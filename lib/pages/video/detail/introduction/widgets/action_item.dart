@@ -1,11 +1,14 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:PiliPlus/utils/extension.dart';
 import 'package:flutter/material.dart';
 import 'package:PiliPlus/utils/feed_back.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 
 class ActionItem extends StatefulWidget {
-  final Icon? icon;
+  final Icon icon;
   final Icon? selectIcon;
   final Function? onTap;
   final Function? onLongPress;
@@ -14,12 +17,13 @@ class ActionItem extends StatefulWidget {
   final bool selectStatus;
   final String semanticsLabel;
   final bool needAnim;
-  final bool hasOneThree;
+  final bool hasTriple;
   final Function? callBack;
+  final bool? expand;
 
   const ActionItem({
     super.key,
-    this.icon,
+    required this.icon,
     this.selectIcon,
     this.onTap,
     this.onLongPress,
@@ -27,9 +31,10 @@ class ActionItem extends StatefulWidget {
     this.text,
     this.selectStatus = false,
     this.needAnim = false,
-    this.hasOneThree = false,
+    this.hasTriple = false,
     this.callBack,
     required this.semanticsLabel,
+    this.expand,
   });
 
   @override
@@ -40,29 +45,33 @@ class ActionItemState extends State<ActionItem> with TickerProviderStateMixin {
   AnimationController? controller;
   Animation<double>? _animation;
 
-  bool get _isThumbUp => widget.semanticsLabel == '点赞';
+  late final _isThumbsUp = widget.semanticsLabel == '点赞';
   late int _lastTime;
-  bool _hideCircle = false;
+  late bool _hideCircle = false;
   Timer? _timer;
 
   void _startLongPress() {
     _lastTime = DateTime.now().millisecondsSinceEpoch;
-    if (!widget.hasOneThree) {
-      _timer ??= Timer(const Duration(milliseconds: 100), () {
-        feedBack();
+    _timer ??= Timer(const Duration(milliseconds: 200), () {
+      if (widget.hasTriple) {
+        HapticFeedback.lightImpact();
+        SmartDialog.showToast('已经完成三连');
+      } else {
         controller?.forward();
         widget.callBack?.call(true);
-        cancelTimer();
-      });
-    }
+      }
+      cancelTimer();
+    });
   }
 
   void _cancelLongPress([bool isCancel = false]) {
     int duration = DateTime.now().millisecondsSinceEpoch - _lastTime;
-    if (duration >= 100 && duration < 1500) {
-      controller?.reverse();
-      widget.callBack?.call(false);
-    } else if (duration < 100) {
+    if (duration >= 200 && duration < 1500) {
+      if (widget.hasTriple.not) {
+        controller?.reverse();
+        widget.callBack?.call(false);
+      }
+    } else if (duration < 200) {
       cancelTimer();
       if (!isCancel) {
         feedBack();
@@ -79,19 +88,23 @@ class ActionItemState extends State<ActionItem> with TickerProviderStateMixin {
         vsync: this,
         duration: const Duration(milliseconds: 1500),
         reverseDuration: const Duration(milliseconds: 400),
-      );
+      )..addListener(listener);
 
-      _animation = Tween<double>(begin: 0, end: -2 * pi).animate(controller!)
-        ..addListener(listener);
+      _animation = Tween<double>(begin: 0, end: -2 * pi).animate(
+        CurvedAnimation(
+          parent: controller!,
+          curve: Curves.easeInOut,
+        ),
+      );
     }
   }
 
   void listener() {
     setState(() {
-      _hideCircle = _animation?.value == -2 * pi;
+      _hideCircle = controller?.value == 1;
       if (_hideCircle) {
         controller?.reset();
-        if (_isThumbUp) {
+        if (_isThumbsUp) {
           widget.onLongPress?.call();
         }
       }
@@ -106,34 +119,36 @@ class ActionItemState extends State<ActionItem> with TickerProviderStateMixin {
   @override
   void dispose() {
     cancelTimer();
-    _animation?.removeListener(listener);
+    controller?.removeListener(listener);
     controller?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: Semantics(
+    return widget.expand == false ? _buildItem : Expanded(child: _buildItem);
+  }
+
+  Widget get _buildItem => Semantics(
         label: (widget.text ?? "") +
             (widget.selectStatus ? "已" : "") +
             widget.semanticsLabel,
         child: InkWell(
           borderRadius: BorderRadius.circular(6),
-          onTap: _isThumbUp
+          onTap: _isThumbsUp
               ? null
               : () {
                   feedBack();
                   widget.onTap?.call();
                 },
-          onLongPress: _isThumbUp
+          onLongPress: _isThumbsUp
               ? null
               : () {
                   widget.onLongPress?.call();
                 },
-          onTapDown: (details) => _isThumbUp ? _startLongPress() : null,
-          onTapUp: (details) => _isThumbUp ? _cancelLongPress() : null,
-          onTapCancel: () => _isThumbUp ? _cancelLongPress(true) : null,
+          onTapDown: (details) => _isThumbsUp ? _startLongPress() : null,
+          onTapUp: (details) => _isThumbsUp ? _cancelLongPress() : null,
+          onTapCancel: () => _isThumbsUp ? _cancelLongPress(true) : null,
           // borderRadius: StyleString.mdRadius,
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -155,42 +170,43 @@ class ActionItemState extends State<ActionItem> with TickerProviderStateMixin {
                   Icon(
                     widget.selectStatus
                         ? widget.selectIcon!.icon!
-                        : widget.icon!.icon!,
+                        : widget.icon.icon,
                     size: 18,
                     color: widget.selectStatus
                         ? Theme.of(context).colorScheme.primary
-                        : Theme.of(context).colorScheme.outline,
+                        : widget.icon.color ??
+                            Theme.of(context).colorScheme.outline,
                   ),
                 ],
               ),
-              AnimatedOpacity(
-                opacity: widget.loadingStatus! ? 0 : 1,
-                duration: const Duration(milliseconds: 200),
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 300),
-                  transitionBuilder:
-                      (Widget child, Animation<double> animation) {
-                    return ScaleTransition(scale: animation, child: child);
-                  },
-                  child: Text(
-                    widget.text ?? '',
-                    key: ValueKey<String>(widget.text ?? ''),
-                    style: TextStyle(
+              if (widget.text != null)
+                AnimatedOpacity(
+                  opacity: widget.loadingStatus! ? 0 : 1,
+                  duration: const Duration(milliseconds: 200),
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    transitionBuilder:
+                        (Widget child, Animation<double> animation) {
+                      return ScaleTransition(scale: animation, child: child);
+                    },
+                    child: Text(
+                      widget.text!,
+                      key: ValueKey<String>(widget.text!),
+                      style: TextStyle(
                         color: widget.selectStatus
                             ? Theme.of(context).colorScheme.primary
                             : Theme.of(context).colorScheme.outline,
                         fontSize:
-                            Theme.of(context).textTheme.labelSmall!.fontSize),
-                    semanticsLabel: "",
+                            Theme.of(context).textTheme.labelSmall!.fontSize,
+                      ),
+                      semanticsLabel: "",
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
         ),
-      ),
-    );
-  }
+      );
 }
 
 class _ArcPainter extends CustomPainter {
